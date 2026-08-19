@@ -58,11 +58,13 @@ function shuffledBag(random) {
 export class Game {
   constructor({ random = Math.random, sequence = [] } = {}) {
     this.random = random;
-    this.sequence = [...sequence];
+    this.initialSequence = [...sequence];
+    this.sequence = [];
     this.reset();
   }
 
   reset() {
+    this.sequence = [...this.initialSequence];
     this.board = createEmptyBoard();
     this.score = 0;
     this.lines = 0;
@@ -81,8 +83,11 @@ export class Game {
   }
 
   preview(count = 3) {
-    while (this.queue.length < count) this.queue.push(...shuffledBag(this.random));
-    return this.queue.slice(0, count);
+    const requested = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+    const scripted = this.sequence.slice(0, requested);
+    const generatedCount = requested - scripted.length;
+    while (this.queue.length < generatedCount) this.queue.push(...shuffledBag(this.random));
+    return [...scripted, ...this.queue.slice(0, generatedCount)];
   }
 
   spawn(type = this.nextType()) {
@@ -141,6 +146,7 @@ export class Game {
   }
 
   softDrop() {
+    if (this.gameOver || this.paused || !this.current) return false;
     if (this.move(0, 1)) {
       this.score += 1;
       return true;
@@ -166,7 +172,7 @@ export class Game {
   }
 
   lockPiece() {
-    if (!this.current || this.gameOver) return;
+    if (!this.current || this.gameOver || this.paused) return false;
     const { matrix, x, y, type } = this.current;
     let aboveTop = false;
 
@@ -182,7 +188,7 @@ export class Game {
 
     if (aboveTop) {
       this.gameOver = true;
-      return;
+      return true;
     }
 
     const cleared = this.clearLines();
@@ -191,6 +197,7 @@ export class Game {
     this.lines += cleared;
     this.level = 1 + Math.floor(this.lines / 10);
     this.spawn();
+    return true;
   }
 
   clearLines() {
