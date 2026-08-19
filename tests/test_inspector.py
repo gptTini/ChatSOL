@@ -53,6 +53,19 @@ class InspectorTests(unittest.TestCase):
             snapshot = inspect_local_repo(root)
             self.assertEqual(snapshot.todo_count, 0)
 
+    def test_todo_words_in_strings_are_not_debt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "chatsol").mkdir()
+            (root / "chatsol" / "scanner.py").write_text(
+                'MARKER = "TODO FIXME"\n'
+                'def ok():\n'
+                '    return "TODO in data"\n',
+                encoding="utf-8",
+            )
+            snapshot = inspect_local_repo(root)
+            self.assertEqual(snapshot.todo_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
