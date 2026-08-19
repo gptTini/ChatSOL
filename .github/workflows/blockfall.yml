@@ -22,5 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check game modules parse
+        run: |
+          node --check examples/blockfall/core.mjs
+          node --check examples/blockfall/app.mjs
       - name: Run Blockfall engine tests
         run: node --test examples/blockfall/core.test.mjs
