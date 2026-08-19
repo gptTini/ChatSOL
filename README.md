@@ -1,58 +1,115 @@
 # ChatSOL
 
-A small sandbox for testing whether a normal ChatGPT conversation running **GPT-5.6 Sol** can act as the coding agent itself: inspect code, write changes, execute tests, react to failures, choose follow-up work, and push fixes through GitHub without handing the coding task to a separate Codex session.
+A sandbox for testing whether a normal ChatGPT conversation running **GPT-5.6 Sol** can act as the coding agent itself: inspect code, write changes, execute tests, react to failures, choose follow-up work, split work into session-scoped branches, and push verified fixes through GitHub without handing the coding task to a separate Codex session.
 
-## First experiment: coding feedback loop
+## Experiment 1: coding feedback loop
 
 The repository started with a GitHub repository-reference parser and adversarial tests.
 
 1. Sol wrote a minimal implementation and tests.
-2. The tests reproduced two SSH parsing failures.
-3. Sol revised the parser and reached 7/7 passing tests.
-4. Sol added new adversarial cases instead of stopping at green.
+2. Tests reproduced SSH parsing failures.
+3. Sol revised the parser and reached green.
+4. Sol added new adversarial cases instead of stopping.
 5. An unsupported `ftp://` remote exposed another bug.
-6. Sol restricted allowed remote schemes and reached 12/12 passing tests.
-7. GitHub Actions independently verified the branch successfully.
+6. Sol fixed it and GitHub Actions independently verified the result.
 
-## Second experiment: autonomous work selection
+## Experiment 2: autonomous work selection
 
-`chatsol.autodev` adds a small deterministic policy layer for deciding what to work on next.
+`chatsol.autodev` adds a deterministic policy layer for deciding what to work on next.
 
-A task has impact, urgency, confidence, effort, risk, and blocked state. ChatSOL scores candidates, refuses blocked work, fits work into an effort budget, validates hostile/invalid inputs, and can generate candidates from repository-health signals.
+A task has impact, urgency, confidence, effort, risk, and blocked state. ChatSOL scores candidates, refuses blocked work, fits work into a cycle budget, validates hostile inputs, and generates candidates from `RepoSignals`.
 
-The second build loop deliberately strengthened its own tests after reaching green:
+Core API:
 
-1. Initial prioritizer: 8 tests, 2 failures because blocked work could still be selected.
-2. Blocked-work fix: 8/8 passing and GitHub Actions green.
-3. Adversarial validation suite: 15 tests exposed invalid numeric state, duplicate task IDs, and invalid budget handling.
-4. Validation fix: 15/15 passing and GitHub Actions green.
-5. Repository-signal task generation added; the full local suite reached 23/23.
-6. The new planner was then applied to ChatSOL itself. It selected `document-public-api` as the next feasible task, which produced this README update.
+- `TaskCandidate`
+- `RepoSignals`
+- `score_task`
+- `rank_tasks`
+- `choose_next`
+- `plan_cycle`
+- `propose_tasks`
+- `plan_from_signals`
 
-### Public API
+## Experiment 3: repository autopilot + multi-session orchestration
 
-- `TaskCandidate`: immutable candidate work item.
-- `RepoSignals`: validated snapshot of repository-health counters.
-- `score_task(task)`: calculate deterministic utility.
-- `rank_tasks(tasks)`: rank unique candidates deterministically.
-- `choose_next(tasks, budget)`: choose the best feasible, unblocked task.
-- `plan_cycle(tasks, budget)`: greedily build a bounded work cycle.
-- `propose_tasks(signals)`: generate development candidates from repository signals.
-- `plan_from_signals(signals, budget)`: generate and prioritize a complete bounded cycle.
+The third experiment separates **decision**, **execution**, **review**, and **integration** instead of making one conversation own every concern.
 
-Example:
+`inspect_local_repo` scans repository state and converts it into health signals. `decide_autonomous_cycle` ranks the resulting candidate work and creates an `ExecutionPlan`. If an important task is larger than the current cycle budget, the autopilot takes a bounded slice instead of starving the task forever.
 
-```python
-from chatsol.autodev import RepoSignals, plan_from_signals
+The session scheduler then decomposes work into branch-scoped packets:
 
-signals = RepoSignals(failing_tests=2, todo_count=12, coverage_gap=15)
-plan = plan_from_signals(signals, budget=5)
+```text
+Wave 1
+└─ scout
 
-for task in plan:
-    print(task.key, task.title, task.effort)
+Wave 2 (parallel)
+├─ implementer   -> product-code scope
+├─ tester        -> test scope
+└─ docs          -> documentation scope
+
+Wave 3
+└─ reviewer
+
+Wave 4
+└─ integrator
 ```
 
-## Run locally
+`build_execution_plan` prevents sessions with overlapping write scopes from entering the same wave. `assignment_packet` gives each worker only its role, branch, read/write scope, dependencies, completion gate, and handoff contract. Writing sessions must return a commit SHA before `integration_ready` can become true.
+
+GitHub Actions mirrors this separation with independent `core`, `autodev`, `sessions`, and `autopilot` test lanes, followed by an autopilot dry run.
+
+### Self-loop evidence
+
+The autopilot was applied to ChatSOL itself during this build:
+
+1. The first scan falsely counted TODO text from fixtures/docs as product debt.
+2. The scanner was narrowed to product code, which exposed a second self-reference bug: its own `"TODO"` string was being counted.
+3. TODO detection was replaced with Python comment-token inspection; the next scan reported `todo_count = 0` and `failing_tests = 0`.
+4. The remaining task was `Document 24 public API(s)`, estimated above a cycle budget of 4.
+5. Starvation protection converted it into a bounded effort-4 slice.
+6. The generated docs worker branch added the first API slice through PR #4, passed the parallel CI lanes, and merged into the integration branch.
+7. The next scan measured the documentation gap dropping from **24 to 16 APIs** and selected the next bounded slice.
+
+This is the closed control loop:
+
+```text
+inspect
+  -> propose
+  -> prioritize
+  -> split into session packets
+  -> execute on isolated branches
+  -> verify in parallel
+  -> review
+  -> integrate
+  -> inspect again
+```
+
+## Multi-session usage
+
+Generate packets for a feature:
+
+```bash
+python -m chatsol.session_cli feature \
+  --key scheduler-v2 \
+  --code chatsol/scheduler.py \
+  --tests tests/test_scheduler.py \
+  --docs docs/scheduler.md \
+  --max-parallel 4
+```
+
+Run one autonomous repository decision:
+
+```bash
+python -m chatsol.autopilot --root . --budget 4 --max-parallel 4 --run-tests
+```
+
+See [`docs/MULTI_SESSION.md`](docs/MULTI_SESSION.md) for the role/branch/handoff protocol and [`docs/API.md`](docs/API.md) for the API reference slices.
+
+### Current transport limitation
+
+ChatSOL can generate packets, branches, conflict rules, reports, and integration gates, but **one ChatGPT conversation cannot spawn several independent ChatGPT conversations by itself**. To get true multi-Sol concurrency today, start separate chats (or a future API runner) with one generated packet per chat. The repository side is already designed so those sessions can work concurrently without sharing a mutable write scope.
+
+## Run tests
 
 ```bash
 python -m unittest discover -s tests -v
@@ -69,11 +126,5 @@ git://github.com/gptTini/ChatSOL.git
 ```
 
 Non-GitHub hosts, deceptive hosts, unsupported URL schemes, and repository URLs with extra path components are rejected.
-
-## Control loop
-
-```text
-inspect -> propose -> prioritize -> implement -> execute -> observe -> critique -> revise -> verify -> repeat
-```
 
 The reasoning and code generation in these experiments is performed by the Sol model in the ChatGPT conversation. GitHub and the execution environment provide the external read/write/test surfaces.

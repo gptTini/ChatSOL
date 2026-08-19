@@ -5,15 +5,40 @@ on:
     branches:
       - main
       - 'sol/**'
+      - 'session/**'
   pull_request:
 
 jobs:
   test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: core
+            tests: "tests/test_repo_ref.py"
+          - suite: autodev
+            tests: "tests/test_autodev.py tests/test_autodev_signals.py"
+          - suite: sessions
+            tests: "tests/test_multisession.py tests/test_session_cli.py"
+          - suite: autopilot
+            tests: "tests/test_inspector.py tests/test_autopilot.py"
+    name: test-${{ matrix.suite }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run ${{ matrix.suite }} tests
+        run: python -m unittest -v ${{ matrix.tests }}
+
+  autopilot-dry-run:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Run tests
-        run: python -m unittest discover -s tests -v
+      - name: Inspect repository and select next work
+        run: python -m chatsol.autopilot --root . --budget 4 --max-parallel 4 --run-tests
