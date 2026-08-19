@@ -35,9 +35,9 @@ def rank_tasks(tasks: Iterable[TaskCandidate]) -> list[TaskCandidate]:
 
 
 def choose_next(tasks: Iterable[TaskCandidate], budget: float) -> TaskCandidate | None:
-    """Choose the highest-ranked task that fits inside the effort budget."""
+    """Choose the highest-ranked unblocked task that fits the effort budget."""
     for task in rank_tasks(tasks):
-        if task.effort <= budget:
+        if not task.blocked and task.effort <= budget:
             return task
     return None
 
@@ -48,6 +48,8 @@ def plan_cycle(tasks: Iterable[TaskCandidate], budget: float) -> list[TaskCandid
     chosen: list[TaskCandidate] = []
 
     for task in rank_tasks(tasks):
+        if task.blocked:
+            continue
         if task.effort <= remaining:
             chosen.append(task)
             remaining -= task.effort
