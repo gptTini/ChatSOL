@@ -41,6 +41,18 @@ class InspectorTests(unittest.TestCase):
             snapshot = inspect_local_repo(root)
             self.assertEqual(snapshot.undocumented_public_apis, ())
 
+    def test_todos_in_tests_or_docs_are_not_product_debt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "chatsol").mkdir()
+            (root / "tests").mkdir()
+            (root / "docs").mkdir()
+            (root / "chatsol" / "demo.py").write_text("def ok():\n    return 1\n", encoding="utf-8")
+            (root / "tests" / "test_demo.py").write_text("# TODO fixture text\n", encoding="utf-8")
+            (root / "docs" / "note.md").write_text("TODO example in docs\n", encoding="utf-8")
+            snapshot = inspect_local_repo(root)
+            self.assertEqual(snapshot.todo_count, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
