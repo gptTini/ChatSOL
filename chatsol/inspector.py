@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import io
+import tokenize
 from typing import Iterable
 
 from .autodev import RepoSignals
@@ -66,8 +68,14 @@ def _count_todos(paths: Iterable[Path]) -> int:
     total = 0
     for path in paths:
         try:
-            total += len(pattern.findall(path.read_text(encoding="utf-8", errors="ignore")))
-        except OSError:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+            total += sum(
+                len(pattern.findall(token.string))
+                for token in tokens
+                if token.type == tokenize.COMMENT
+            )
+        except (OSError, tokenize.TokenError, IndentationError):
             continue
     return total
 
@@ -120,7 +128,6 @@ def inspect_local_repo(root: str | Path, *, run_tests: bool = False) -> LocalRep
         if simple not in corpus and qualified not in corpus:
             undocumented.append(qualified)
 
-    # Product debt should not be inflated by TODO examples in tests or docs.
     todo_count = _count_todos(api_paths)
     failing_tests = _run_unittest(root_path) if run_tests else 0
 
