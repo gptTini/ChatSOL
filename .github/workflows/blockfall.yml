@@ -1,0 +1,26 @@
+name: Blockfall CI
+
+on:
+  pull_request:
+    paths:
+      - 'examples/blockfall/**'
+      - '.github/workflows/blockfall.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'examples/blockfall/**'
+      - '.github/workflows/blockfall.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Blockfall engine tests
+        run: node --test examples/blockfall/core.test.mjs
