@@ -26,5 +26,5 @@ jobs:
         run: |
           node --check examples/blockfall/core.mjs
           node --check examples/blockfall/app.mjs
-      - name: Run Blockfall engine tests
-        run: node --test examples/blockfall/core.test.mjs
+      - name: Run Blockfall tests
+        run: node --test examples/blockfall/*.test.mjs
