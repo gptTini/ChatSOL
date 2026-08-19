@@ -47,6 +47,35 @@ class TaskCandidate:
             raise ValueError("risk must be non-negative")
 
 
+@dataclass(frozen=True)
+class RepoSignals:
+    """Small, tool-friendly snapshot of repository health."""
+
+    failing_tests: int = 0
+    flaky_tests: int = 0
+    security_alerts: int = 0
+    stale_dependencies: int = 0
+    undocumented_public_apis: int = 0
+    todo_count: int = 0
+    coverage_gap: float = 0.0
+
+    def __post_init__(self) -> None:
+        counters = {
+            "failing_tests": self.failing_tests,
+            "flaky_tests": self.flaky_tests,
+            "security_alerts": self.security_alerts,
+            "stale_dependencies": self.stale_dependencies,
+            "undocumented_public_apis": self.undocumented_public_apis,
+            "todo_count": self.todo_count,
+        }
+        for name, value in counters.items():
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(f"{name} must be a non-negative integer")
+
+        if not math.isfinite(self.coverage_gap) or not 0 <= self.coverage_gap <= 100:
+            raise ValueError("coverage_gap must be between 0 and 100")
+
+
 def _validate_budget(budget: float) -> None:
     if not math.isfinite(budget) or budget < 0:
         raise ValueError("budget must be a finite non-negative number")
@@ -96,3 +125,106 @@ def plan_cycle(tasks: Iterable[TaskCandidate], budget: float) -> list[TaskCandid
             remaining -= task.effort
 
     return chosen
+
+
+def propose_tasks(signals: RepoSignals) -> list[TaskCandidate]:
+    """Turn repository-health signals into deterministic development candidates."""
+    tasks: list[TaskCandidate] = []
+
+    if signals.security_alerts:
+        tasks.append(
+            TaskCandidate(
+                key="security-alerts",
+                title=f"Resolve {signals.security_alerts} security alert(s)",
+                impact=10,
+                urgency=12,
+                confidence=0.95,
+                effort=min(8.0, 1.0 + signals.security_alerts),
+                risk=0.5,
+            )
+        )
+
+    if signals.failing_tests:
+        tasks.append(
+            TaskCandidate(
+                key="repair-failing-tests",
+                title=f"Repair {signals.failing_tests} failing test(s)",
+                impact=10,
+                urgency=10,
+                confidence=0.95,
+                effort=min(8.0, 1.0 + signals.failing_tests),
+                risk=1,
+            )
+        )
+
+    if signals.flaky_tests:
+        tasks.append(
+            TaskCandidate(
+                key="stabilize-flaky-tests",
+                title=f"Stabilize {signals.flaky_tests} flaky test(s)",
+                impact=8,
+                urgency=7,
+                confidence=0.8,
+                effort=min(8.0, 1.0 + signals.flaky_tests),
+                risk=1,
+            )
+        )
+
+    if signals.coverage_gap:
+        tasks.append(
+            TaskCandidate(
+                key="close-coverage-gap",
+                title=f"Close {signals.coverage_gap:g}% coverage gap",
+                impact=6,
+                urgency=4,
+                confidence=0.9,
+                effort=min(8.0, max(1.0, signals.coverage_gap / 10.0)),
+                risk=0.5,
+            )
+        )
+
+    if signals.stale_dependencies:
+        tasks.append(
+            TaskCandidate(
+                key="refresh-dependencies",
+                title=f"Review {signals.stale_dependencies} stale dependency(ies)",
+                impact=6,
+                urgency=5,
+                confidence=0.75,
+                effort=min(8.0, 1.0 + signals.stale_dependencies / 2.0),
+                risk=2,
+            )
+        )
+
+    if signals.undocumented_public_apis:
+        tasks.append(
+            TaskCandidate(
+                key="document-public-api",
+                title=f"Document {signals.undocumented_public_apis} public API(s)",
+                impact=4,
+                urgency=3,
+                confidence=0.95,
+                effort=min(8.0, 1.0 + signals.undocumented_public_apis / 3.0),
+                risk=0.2,
+            )
+        )
+
+    if signals.todo_count:
+        tasks.append(
+            TaskCandidate(
+                key="reduce-todo-debt",
+                title=f"Resolve or triage {signals.todo_count} TODO(s)",
+                impact=4,
+                urgency=2,
+                confidence=0.7,
+                effort=min(8.0, 1.0 + signals.todo_count / 4.0),
+                risk=0.5,
+            )
+        )
+
+    return tasks
+
+
+def plan_from_signals(signals: RepoSignals, budget: float) -> list[TaskCandidate]:
+    """Generate and prioritize one bounded autonomous development cycle."""
+    return plan_cycle(propose_tasks(signals), budget)
