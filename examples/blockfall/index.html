@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blockfall · ChatSOL</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="game-shell">
+    <section class="hero">
+      <p class="eyebrow">ChatSOL experiment</p>
+      <h1>BLOCKFALL</h1>
+      <p class="subtitle">A small falling-block game built through isolated worker branches.</p>
+    </section>
+
+    <section class="game-layout" aria-label="Blockfall game">
+      <div class="board-wrap">
+        <canvas id="board" width="280" height="560" aria-label="Game board"></canvas>
+        <div id="overlay" class="overlay hidden" role="status">
+          <strong id="overlay-title">Paused</strong>
+          <span id="overlay-copy">Press P to resume</span>
+        </div>
+      </div>
+
+      <aside class="sidebar">
+        <div class="panel stats">
+          <div><span>Score</span><strong id="score">0</strong></div>
+          <div><span>Lines</span><strong id="lines">0</strong></div>
+          <div><span>Level</span><strong id="level">1</strong></div>
+        </div>
+
+        <div class="panel next-panel">
+          <span class="panel-label">Next</span>
+          <canvas id="next" width="120" height="120" aria-label="Next piece"></canvas>
+        </div>
+
+        <div class="panel controls">
+          <span class="panel-label">Controls</span>
+          <dl>
+            <div><dt>Move</dt><dd>← →</dd></div>
+            <div><dt>Soft drop</dt><dd>↓</dd></div>
+            <div><dt>Rotate</dt><dd>Z / X / ↑</dd></div>
+            <div><dt>Hard drop</dt><dd>Space</dd></div>
+            <div><dt>Pause</dt><dd>P</dd></div>
+            <div><dt>Restart</dt><dd>R</dd></div>
+          </dl>
+        </div>
+      </aside>
+    </section>
+
+    <section class="touch-controls" aria-label="Touch controls">
+      <button data-action="left" aria-label="Move left">←</button>
+      <button data-action="rotate" aria-label="Rotate">↻</button>
+      <button data-action="right" aria-label="Move right">→</button>
+      <button data-action="down" aria-label="Soft drop">↓</button>
+      <button data-action="drop" class="wide" aria-label="Hard drop">DROP</button>
+    </section>
+  </main>
+
+  <script type="module" src="./app.mjs"></script>
+</body>
+</html>
