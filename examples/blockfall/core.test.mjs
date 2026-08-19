@@ -103,3 +103,12 @@ test('pause blocks movement until resumed', () => {
   game.togglePause();
   assert.equal(game.move(1, 0), true);
 });
+
+test('a generated seven-piece bag contains every tetromino exactly once', () => {
+  const game = new Game({ random: () => 0.42 });
+  const first = game.current.type;
+  const remaining = game.preview(6);
+  const bag = [first, ...remaining];
+  assert.equal(bag.length, 7);
+  assert.deepEqual([...new Set(bag)].sort(), Object.keys(SHAPES).sort());
+});
