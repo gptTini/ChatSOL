@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import json
 from pathlib import Path
 
-from .autodev import RepoSignals, TaskCandidate, choose_next, propose_tasks
+from .autodev import RepoSignals, TaskCandidate, choose_next, propose_tasks, rank_tasks
 from .inspector import LocalRepoSnapshot, inspect_local_repo, signals_from_snapshot
 from .sessions import (
     ExecutionPlan,
@@ -96,6 +96,20 @@ def decide_autonomous_cycle(
     )
     candidates = tuple(propose_tasks(signals))
     selected = choose_next(candidates, budget)
+
+    # Avoid permanent starvation when the highest-value remaining work is
+    # larger than one cycle. Slice one unblocked task to the current budget
+    # rather than doing nothing forever.
+    if selected is None and budget >= 1:
+        ranked = [candidate for candidate in rank_tasks(candidates) if not candidate.blocked]
+        if ranked:
+            candidate = ranked[0]
+            selected = replace(
+                candidate,
+                title=f"Bounded slice: {candidate.title}",
+                effort=min(candidate.effort, budget),
+            )
+
     plan = None
     if selected is not None:
         plan = build_execution_plan(
