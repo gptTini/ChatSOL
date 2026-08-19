@@ -15,6 +15,8 @@ class RepoRef:
 def _github_path_from_remote(raw: str) -> str:
     if "://" in raw:
         parsed = urlparse(raw)
+        if parsed.scheme.lower() not in {"https", "ssh", "git"}:
+            raise ValueError("unsupported repository URL scheme")
         if (parsed.hostname or "").lower() != "github.com":
             raise ValueError("repository URL must use github.com")
         return parsed.path.strip("/")
