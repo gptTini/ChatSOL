@@ -1,3 +1,4 @@
+import math
 import unittest
 
 from chatsol.autodev import TaskCandidate, choose_next, plan_cycle, rank_tasks, score_task
@@ -61,6 +62,47 @@ class AutoDevTests(unittest.TestCase):
         task = self.candidate("a", effort=1)
         self.assertIsNone(choose_next([task], budget=0))
         self.assertEqual(plan_cycle([task], budget=0), [])
+
+    def test_negative_effort_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.candidate("negative-effort", effort=-1)
+
+    def test_non_finite_score_inputs_are_rejected(self):
+        for field in ("impact", "urgency", "confidence", "effort", "risk"):
+            with self.subTest(field=field):
+                with self.assertRaises(ValueError):
+                    self.candidate("nan", **{field: math.nan})
+
+    def test_confidence_must_be_probability(self):
+        with self.assertRaises(ValueError):
+            self.candidate("overconfident", confidence=1.01)
+        with self.assertRaises(ValueError):
+            self.candidate("negative-confidence", confidence=-0.01)
+
+    def test_negative_risk_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.candidate("negative-risk", risk=-0.1)
+
+    def test_empty_identity_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.candidate("")
+        with self.assertRaises(ValueError):
+            self.candidate("key", title="   ")
+
+    def test_duplicate_keys_are_rejected(self):
+        first = self.candidate("same", title="first")
+        second = self.candidate("same", title="second")
+        with self.assertRaises(ValueError):
+            rank_tasks([first, second])
+
+    def test_negative_or_non_finite_budget_is_rejected(self):
+        task = self.candidate("a")
+        for budget in (-1, math.nan, math.inf):
+            with self.subTest(budget=budget):
+                with self.assertRaises(ValueError):
+                    choose_next([task], budget)
+                with self.assertRaises(ValueError):
+                    plan_cycle([task], budget)
 
 
 if __name__ == "__main__":
