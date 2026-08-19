@@ -12,20 +12,32 @@ class RepoRef:
         return f"{self.owner}/{self.repo}"
 
 
-def parse_repo_ref(value: str) -> RepoRef:
-    """Parse a GitHub repository reference into owner/repo.
+def _github_path_from_remote(raw: str) -> str:
+    if "://" in raw:
+        parsed = urlparse(raw)
+        if (parsed.hostname or "").lower() != "github.com":
+            raise ValueError("repository URL must use github.com")
+        return parsed.path.strip("/")
 
-    Supported initially: owner/repo and https://github.com/owner/repo(.git).
-    """
+    if raw.startswith("git@"):
+        try:
+            host, path = raw[4:].split(":", 1)
+        except ValueError as exc:
+            raise ValueError("invalid SSH repository reference") from exc
+        if host.lower() != "github.com":
+            raise ValueError("SSH repository URL must use github.com")
+        return path.strip("/")
+
+    return raw
+
+
+def parse_repo_ref(value: str) -> RepoRef:
+    """Parse common GitHub repository references into ``owner/repo``."""
     raw = value.strip()
     if not raw:
         raise ValueError("empty repository reference")
 
-    if raw.startswith("http://") or raw.startswith("https://"):
-        parsed = urlparse(raw)
-        if parsed.hostname != "github.com":
-            raise ValueError("repository URL must use github.com")
-        raw = parsed.path.strip("/")
+    raw = _github_path_from_remote(raw)
 
     if raw.endswith(".git"):
         raw = raw[:-4]
