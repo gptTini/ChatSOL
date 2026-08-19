@@ -120,7 +120,8 @@ def inspect_local_repo(root: str | Path, *, run_tests: bool = False) -> LocalRep
         if simple not in corpus and qualified not in corpus:
             undocumented.append(qualified)
 
-    todo_count = _count_todos(list(python_paths) + list(_iter_files(root_path, ".md")))
+    # Product debt should not be inflated by TODO examples in tests or docs.
+    todo_count = _count_todos(api_paths)
     failing_tests = _run_unittest(root_path) if run_tests else 0
 
     return LocalRepoSnapshot(
